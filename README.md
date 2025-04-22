@@ -4,7 +4,7 @@ A versatile command-line tool for various PDF manipulation tasks.
 
 ## Features
 
-- **PDF to Text/Markdown Converter:** Convert single or multiple PDF files in a folder to plain text (.txt) or Markdown (.md) format with a progress bar.
+- **PDF to Text/Markdown Converter:** Convert single or multiple PDF files in a folder to plain text (.txt) or Markdown (.md) format using OCR when necessary, with a progress bar.
 - **PDF Splitter:** (Coming Soon)
 
 ## Installation
@@ -26,6 +26,8 @@ A versatile command-line tool for various PDF manipulation tasks.
     ```
 
 ## Usage
+
+The PDF to Text/Markdown Converter feature automatically utilizes OCR (Optical Character Recognition) when it cannot extract text directly from the PDF or when creating searchable PDF output (if implemented).
 
 1.  **Run the tool:**
     ```bash
