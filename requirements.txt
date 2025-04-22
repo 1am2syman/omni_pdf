@@ -1,2 +1,6 @@
-pypdf2
+pymupdf
 tqdm
+paddleocr
+paddlepaddle
+Pillow
+pdf2image

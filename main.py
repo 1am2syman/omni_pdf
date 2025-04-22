@@ -1,47 +1,15 @@
 import sys
 import os
-import PyPDF2
-from tqdm import tqdm
-
-def convert_pdf_to_text(pdf_path, output_format='txt'):
-    """Converts a single PDF file to text or markdown with a progress bar."""
-    try:
-        with open(pdf_path, 'rb') as file:
-            reader = PyPDF2.PdfReader(file)
-            text = ""
-            # Wrap the page iteration with tqdm for a progress bar
-            for page_num in tqdm(range(len(reader.pages)), desc=f"Converting '{os.path.basename(pdf_path)}'"):
-                text += reader.pages[page_num].extract_text() or ""
-                if output_format == 'md':
-                    text += "\n\n---\n\n" # Add a separator for markdown pages
-        
-        output_path = os.path.splitext(pdf_path)[0] + f".{output_format}"
-        with open(output_path, 'w', encoding='utf-8') as outfile:
-            outfile.write(text)
-        print(f"\nSuccessfully converted '{pdf_path}' to '{output_path}'") # Add newline after progress bar
-    except FileNotFoundError:
-        print(f"\nError: File not found at '{pdf_path}'") # Add newline
-    except Exception as e:
-        print(f"\nError converting '{pdf_path}': {e}") # Add newline
-
-def convert_folder_pdfs_to_text(folder_path, output_format='txt'):
-    """Converts all PDF files in a folder to text or markdown with progress bars."""
-    if not os.path.isdir(folder_path):
-        print(f"Error: Folder not found at '{folder_path}'")
-        return
-
-    pdf_files = [f for f in os.listdir(folder_path) if f.lower().endswith(".pdf")]
-    # Wrap the file iteration with tqdm for a progress bar
-    for filename in tqdm(pdf_files, desc=f"Processing folder '{os.path.basename(folder_path)}'"):
-        pdf_path = os.path.join(folder_path, filename)
-        convert_pdf_to_text(pdf_path, output_format)
+from features.converter import convert_pdf_to_text, convert_folder_pdfs_to_text
+from features.splitter import split_pdf
 
 def display_menu():
     """Displays the main menu of features."""
-    print("\nPDF Swiss Army Knife - Choose a feature:")
+    print("\nOmni PDF - Choose a feature:")
     print("1. PDF to Text/Markdown Converter")
-    print("2. PDF Splitter (Coming Soon)")
-    print("3. Exit")
+    print("2. PDF Splitter")
+    print("3. PDF OCR (PaddleOCR)")
+    print("4. Exit")
 
 def handle_choice(choice):
     """Handles the user's menu choice."""
@@ -54,25 +22,62 @@ def handle_choice(choice):
             output_format = 'txt'
 
         if conversion_type == 'S':
-            pdf_path = input("Enter the path to the PDF file: ")
+            pdf_path = input("Enter the path to the PDF file: ").strip('"')
             convert_pdf_to_text(pdf_path, output_format)
         elif conversion_type == 'F':
-            folder_path = input("Enter the path to the folder containing PDF files: ")
-            convert_folder_pdfs_to_text(folder_path, output_format)
+            folder_path = input("Enter the path to the folder containing PDF files: ").strip('"')
+            convert_folder_pdfs_to_text(folder_path, output_format) # Corrected output_path to output_format
         else:
             print("Invalid conversion type. Please enter 'S' or 'F'.")
 
     elif choice == '2':
-        print("\nPDF Splitter selected. This feature is coming soon.")
-        pass
+        print("\nPDF Splitter selected.")
+        pdf_path = input("Enter the path to the PDF file to split: ").strip('"')
+        page_ranges_str = input("Enter page ranges to split (e.g., 1-5, 7, 10-12): ")
+        output_dir = input("Enter output directory (leave blank for input folder): ").strip('"') or None
+        split_pdf(pdf_path, page_ranges_str, output_dir)
+
     elif choice == '3':
-        print("Exiting PDF Swiss Army Knife. Goodbye!")
+        print("\nPDF OCR (PaddleOCR) selected.")
+        from features.ocr import convert_pdf_to_ocr, ocr_folder_pdfs # Import OCR functions (updated function name)
+        ocr_type = input("Perform OCR on (S)ingle file or (F)older? (S/F): ").upper()
+
+        # Prompt for output type: Text or Searchable PDF
+        output_type_input = input("Output as (T)ext (.txt/.md) or (S)earchable PDF (.pdf)? (T/S): ").upper()
+        if output_type_input == 'T':
+            output_type = 'text'
+            output_format = input("Text output format (txt/md): ").lower()
+            if output_format not in ['txt', 'md']:
+                print("Invalid text output format. Defaulting to txt.")
+                output_format = 'txt'
+        elif output_type_input == 'S':
+            output_type = 'pdf'
+            output_format = 'pdf' # Output format is fixed for PDF
+        else:
+            print("Invalid output type. Defaulting to Text (.txt).")
+            output_type = 'text'
+            output_format = 'txt'
+
+        force_ocr_input = input("Force OCR on all pages (Y/N)? (Default is intelligent detection for text, always OCR for PDF): ").upper()
+        force_ocr = force_ocr_input == 'Y'
+
+        if ocr_type == 'S':
+            pdf_path = input("Enter the path to the PDF file: ").strip('"')
+            convert_pdf_to_ocr(pdf_path, output_type, output_format, force_ocr) # Pass output_type
+        elif ocr_type == 'F':
+            folder_path = input("Enter the path to the folder containing PDF files: ").strip('"')
+            ocr_folder_pdfs(folder_path, output_type, output_format, force_ocr) # Pass output_type
+        else:
+            print("Invalid OCR type. Please enter 'S' or 'F'.")
+
+    elif choice == '4':
+        print("Exiting Omni PDF. Goodbye!")
         sys.exit()
     else:
         print("Invalid choice. Please enter a number from the menu.")
 
 def main():
-    """Main function to run the PDF Swiss Army Knife."""
+    """Main function to run Omni PDF."""
     while True:
         display_menu()
         choice = input("Enter your choice: ")
