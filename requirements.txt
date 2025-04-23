@@ -8,3 +8,6 @@ PyPDF2
 siuba
 Flask==3.0.2
 Jinja2==3.1.3
+reportlab==4.0.9
+markdown
+selenium==4.20.0

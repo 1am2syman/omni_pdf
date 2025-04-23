@@ -5,6 +5,7 @@ import os
 from features.converter import convert_pdf_to_text, convert_folder_pdfs_to_text
 from features.splitter import split_pdf
 from features.reorder import start_editor # Import the reorder function
+from features.conversions import PDFToImageConverter, ImageToPDFConverter, TextToPDFConverter, MarkdownToPDFConverter, HTMLToPDFConverter, handle_conversion # Import conversion features
 
 def display_menu():
     """Displays the main menu of features."""
@@ -14,7 +15,54 @@ def display_menu():
     print("3. PDF OCR (PaddleOCR)")
     print("4. PDF Merger")
     print("5. Reorder PDF Pages") # Added new option
-    print("6. Exit") # Updated exit option
+    print("6. File Conversion") # Consolidated conversion options
+    print("7. Exit") # Updated exit option
+
+def handle_conversion_menu():
+    """Displays and handles the conversion sub-menu."""
+    print("\nFile Conversion - Choose a conversion type:")
+    print("1. PDF to Image")
+    print("2. Image to PDF")
+    print("3. Text to PDF")
+    print("4. Markdown to PDF")
+    print("5. HTML/URL to PDF")
+    print("6. Back to Main Menu")
+
+    while True:
+        conversion_choice = input("Enter your choice: ")
+        if conversion_choice == '1':
+            input_path = input("Enter the path to the PDF file or folder: ").strip('"')
+            output_format = input("Enter output image format (PNG, JPG): ").upper()
+            pages_input = input("Enter page range (e.g., 1-5) or leave blank for all: ").strip()
+            pages = None
+            if pages_input:
+                try:
+                    if '-' in pages_input:
+                        start, end = map(int, pages_input.split('-'))
+                        pages = (start, end)
+                    else:
+                        pages = (int(pages_input), int(pages_input))
+                except ValueError:
+                    print("Invalid page range format. Converting all pages.")
+                    pages = None
+            handle_conversion(input_path, PDFToImageConverter(), fmt=output_format, pages=pages)
+        elif conversion_choice == '2':
+            input_path = input("Enter the path to the image file or folder: ").strip('"')
+            handle_conversion(input_path, ImageToPDFConverter())
+        elif conversion_choice == '3':
+            input_path = input("Enter the path to the text file or folder: ").strip('"')
+            handle_conversion(input_path, TextToPDFConverter())
+        elif conversion_choice == '4':
+            input_path = input("Enter the path to the Markdown file or folder: ").strip('"')
+            handle_conversion(input_path, MarkdownToPDFConverter())
+        elif conversion_choice == '5':
+            input_path = input("Enter the path to the HTML file, folder, or URL: ").strip('"')
+            handle_conversion(input_path, HTMLToPDFConverter())
+        elif conversion_choice == '6':
+            break # Go back to main menu
+        else:
+            print("Invalid choice. Please enter a number from the conversion menu.")
+
 
 def handle_choice(choice):
     """Handles the user's menu choice."""
@@ -83,7 +131,9 @@ def handle_choice(choice):
         print("\nReorder PDF Pages selected.")
         pdf_path = input("Enter the path to the PDF file to reorder: ").strip('"')
         start_editor(pdf_path)
-    elif choice == '6': # Updated exit choice
+    elif choice == '6': # Handle the new conversion menu
+        handle_conversion_menu()
+    elif choice == '7': # Updated exit choice
         print("Exiting Omni PDF. Goodbye!")
         sys.exit()
     else:

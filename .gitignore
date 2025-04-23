@@ -1,6 +1,7 @@
 # Ignore virtual environment directory
 venv/
 .venv/
+temp_reorder/
 
 # Ignore compiled Python files
 __pycache__/
