@@ -1,7 +1,10 @@
 import sys
 import os
+import sys
+import os
 from features.converter import convert_pdf_to_text, convert_folder_pdfs_to_text
 from features.splitter import split_pdf
+from features.reorder import start_editor # Import the reorder function
 
 def display_menu():
     """Displays the main menu of features."""
@@ -9,7 +12,9 @@ def display_menu():
     print("1. PDF to Text/Markdown Converter")
     print("2. PDF Splitter")
     print("3. PDF OCR (PaddleOCR)")
-    print("4. Exit")
+    print("4. PDF Merger")
+    print("5. Reorder PDF Pages") # Added new option
+    print("6. Exit") # Updated exit option
 
 def handle_choice(choice):
     """Handles the user's menu choice."""
@@ -71,6 +76,14 @@ def handle_choice(choice):
             print("Invalid OCR type. Please enter 'S' or 'F'.")
 
     elif choice == '4':
+        print("\nPDF Merger selected.")
+        from features.merger import merge_prompt
+        merge_prompt()
+    elif choice == '5': # Added new elif for reorder
+        print("\nReorder PDF Pages selected.")
+        pdf_path = input("Enter the path to the PDF file to reorder: ").strip('"')
+        start_editor(pdf_path)
+    elif choice == '6': # Updated exit choice
         print("Exiting Omni PDF. Goodbye!")
         sys.exit()
     else:
