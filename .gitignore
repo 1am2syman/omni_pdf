@@ -2,6 +2,7 @@
 venv/
 .venv/
 temp_reorder/
+omnipdfenv/
 
 # Ignore compiled Python files
 __pycache__/

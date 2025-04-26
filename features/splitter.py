@@ -1,108 +1,124 @@
+"""PDF Splitter tool to split PDF files by page ranges.
+
+This module provides a function to split a PDF file into multiple files based on specified page ranges.
+It uses the `PyPDF2` library for PDF operations.
+The progress bar is displayed on the console in real time using rich.
+"""
+
 import os
-import fitz  # Import PyMuPDF
-from tqdm import tqdm
+from PyPDF2 import PdfReader, PdfWriter
+from rich.progress import Progress, TaskID
 
-def split_pdf(pdf_path, page_ranges, output_dir=None):
-    """Splits a PDF file into multiple files based on page ranges with a progress bar using PyMuPDF."""
+def split_pdf(pdf_path, page_ranges, output_dir=None, progress: Progress = None, task_id: TaskID = None):
+    """Splits a PDF file into multiple files based on page ranges.
+
+    Args:
+        pdf_path (str): The path to the input PDF file.
+        page_ranges (str): A string specifying the page ranges (e.g., "1-5,7,10-12").
+        output_dir (str, optional): The directory to save the output files.
+                                     Defaults to the same directory as the input file.
+        progress: The rich Progress object for updating the progress bar.
+        task_id: The rich TaskID for the specific task.
+    """
+    if not os.path.exists(pdf_path):
+        if progress:
+            progress.console.print(f"Error: Input PDF file not found at '{pdf_path}'")
+        else:
+            print(f"Error: Input PDF file not found at '{pdf_path}'")
+        return
+
     try:
-        # Use fitz.open() to open the PDF
-        doc = fitz.open(pdf_path)
-        total_pages = doc.page_count
-
-        if output_dir is None:
-            output_dir = os.path.dirname(pdf_path)
-        os.makedirs(output_dir, exist_ok=True)
-
-        base_filename = os.path.splitext(os.path.basename(pdf_path))[0]
-
-        split_jobs = []
-        for range_str in page_ranges.split(','):
-            range_str = range_str.strip()
-            if '-' in range_str:
-                start_end = range_str.split('-')
-                if len(start_end) == 2:
-                    try:
-                        start_page = int(start_end[0])
-                        end_page = int(start_end[1])
-                        if 1 <= start_page <= end_page <= total_pages:
-                            split_jobs.append((start_page, end_page))
-                        else:
-                            print(f"Warning: Invalid page range '{range_str}' for '{os.path.basename(pdf_path)}'. Skipping.")
-                    except ValueError:
-                        print(f"Warning: Invalid page range format '{range_str}'. Skipping.")
-                else:
-                     print(f"Warning: Invalid page range format '{range_str}'. Skipping.")
-            else:
-                try:
-                    page = int(range_str)
-                    if 1 <= page <= total_pages:
-                        split_jobs.append((page, page))
-                    else:
-                         print(f"Warning: Invalid page number '{range_str}' for '{os.path.basename(pdf_path)}'. Skipping.")
-                except ValueError:
-                    print(f"Warning: Invalid page number format '{range_str}'. Skipping.")
-
-        if not split_jobs:
-            print(f"No valid page ranges provided for '{os.path.basename(pdf_path)}'. No files will be split.")
-            doc.close() # Close the document
-            return
-
-        # Determine pages included in split jobs
-        included_pages = set()
-        for start_page, end_page in split_jobs:
-            for page_num in range(start_page, end_page + 1):
-                included_pages.add(page_num)
-
-        # Find leftover pages
-        all_pages = set(range(1, total_pages + 1))
-        leftover_pages = sorted(list(all_pages - included_pages))
-
-        # Add leftover pages as a split job if they exist
-        if leftover_pages:
-            # Consolidate consecutive leftover pages into ranges
-            leftover_ranges = []
-            if leftover_pages:
-                start_range = leftover_pages[0]
-                end_range = leftover_pages[0]
-                for i in range(1, len(leftover_pages)):
-                    if leftover_pages[i] == end_range + 1:
-                        end_range = leftover_pages[i]
-                    else:
-                        leftover_ranges.append((start_range, end_range))
-                        start_range = leftover_pages[i]
-                        end_range = leftover_pages[i]
-                leftover_ranges.append((start_range, end_range)) # Add the last range
-
-            for start_page, end_page in leftover_ranges:
-                 split_jobs.append((start_page, end_page))
-
-
-        # Sort split jobs by start page
-        split_jobs.sort()
-
-        for i, (start_page, end_page) in enumerate(tqdm(split_jobs, desc=f"Splitting '{os.path.basename(pdf_path)}'")):
-            # Create a new PDF document for each split job
-            new_pdf = fitz.open()
-            for page_num in range(start_page - 1, end_page):
-                # Copy pages from the original document to the new one
-                new_pdf.insert_pdf(doc, from_page=page_num, to_page=page_num)
-
-            if (start_page, end_page) in leftover_ranges:
-                 output_filename = f"{base_filename}_leftover_pages_{start_page}-{end_page}.pdf"
-            else:
-                output_filename = f"{base_filename}_pages_{start_page}-{end_page}.pdf"
-
-            output_path = os.path.join(output_dir, output_filename)
-
-            # Save the new PDF
-            new_pdf.save(output_path)
-            new_pdf.close() # Close the new document
-
-        doc.close() # Close the original document
-
-        print(f"\nSuccessfully split '{os.path.basename(pdf_path)}' into {len(split_jobs)} files in '{output_dir}'")
-
-    except FileNotFoundError:
-        print(f"\nError: File not found at '{pdf_path}')")
+        reader = PdfReader(pdf_path)
+        total_pages = len(reader.pages)
     except Exception as e:
-        print(f"\nError splitting '{pdf_path}': {e}")
+        if progress:
+            progress.console.print(f"Error reading PDF file '{pdf_path}': {e}")
+        else:
+            print(f"Error reading PDF file '{pdf_path}': {e}")
+        return
+
+    if output_dir and not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    base_filename = os.path.splitext(os.path.basename(pdf_path))[0]
+
+    ranges = []
+    for part in page_ranges.split(','):
+        part = part.strip()
+        if '-' in part:
+            try:
+                start, end = map(int, part.split('-'))
+                ranges.append((start, end))
+            except ValueError:
+                if progress:
+                    progress.console.print(f"Warning: Invalid range format '{part}'. Skipping.")
+                else:
+                    print(f"Warning: Invalid range format '{part}'. Skipping.")
+        else:
+            try:
+                page_num = int(part)
+                ranges.append((page_num, page_num))
+            except ValueError:
+                if progress:
+                    progress.console.print(f"Warning: Invalid page number format '{part}'. Skipping.")
+                else:
+                    print(f"Warning: Invalid page number format '{part}'. Skipping.")
+
+    if not ranges:
+        if progress:
+            progress.console.print("No valid page ranges specified.")
+        else:
+            print("No valid page ranges specified.")
+        return
+
+    total_tasks = len(ranges)
+    if progress and task_id:
+         progress.update(task_id, total=total_tasks)
+
+    for i, (start_page, end_page) in enumerate(ranges):
+        writer = PdfWriter()
+        valid_pages_added = 0
+        for page_num in range(start_page - 1, end_page):
+            if 0 <= page_num < total_pages:
+                writer.add_page(reader.pages[page_num])
+                valid_pages_added += 1
+            else:
+                if progress:
+                    progress.console.print(f"Warning: Page number {page_num + 1} is out of range.")
+                else:
+                    print(f"Warning: Page number {page_num + 1} is out of range.")
+
+        if valid_pages_added > 0:
+            output_filename = f"{base_filename}_part_{i+1}.pdf"
+            if output_dir:
+                output_path = os.path.join(output_dir, output_filename)
+            else:
+                output_path = os.path.join(os.path.dirname(pdf_path), output_filename)
+
+            try:
+                with open(output_path, 'wb') as outfile:
+                    writer.write(outfile)
+                if progress:
+                    progress.console.print(f"Successfully created '{output_path}' with pages {start_page}-{end_page}")
+                else:
+                    print(f"Successfully created '{output_path}' with pages {start_page}-{end_page}")
+            except Exception as e:
+                if progress:
+                    progress.console.print(f"Error writing output file '{output_path}': {e}")
+                else:
+                    print(f"Error writing output file '{output_path}': {e}")
+        else:
+            if progress:
+                progress.console.print(f"No valid pages found for range {start_page}-{end_page}. Skipping output file creation.")
+            else:
+                print(f"No valid pages found for range {start_page}-{end_page}. Skipping output file creation.")
+
+        if progress and task_id:
+            progress.update(task_id, advance=1)
+
+
+if __name__ == "__main__":
+    # Retain old interactive mode for direct script execution
+    import sys
+    print("This script should be run through the main CLI interface.")
+    sys.exit(1)
