@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scan Image</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .img-container {
+            height: 60vh;
+            background: #f8f9fa;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .cropper-container {
+            width: 100% !important;
+            height: 100% !important;
+        }
+        .slider-container {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        .slider-container input[type="range"] {
+            flex-grow: 1;
+        }
+        .slider-value {
+            min-width: 3rem;
+            text-align: right;
+        }
+        .thumbnail {
+            width: 80px;
+            height: 80px;
+            object-fit: cover;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .thumbnail.active {
+            border: 3px solid #3b82f6;
+            transform: scale(1.1);
+        }
+        @media (max-width: 640px) {
+            .img-container {
+                height: 40vh;
+            }
+        }
+        /* Dark mode styles */
+        .dark {
+            background-color: #1a1a1a;
+            color: #ffffff;
+        }
+        .dark .img-container {
+            background: #2d2d2d;
+        }
+    </style>
+    <script type="application/json" id="scan-data">
+        {{ { 'images_data': images_data, 'output_folder': output_folder } | tojson }}
+    </script>
+</head>
+<body class="h-full bg-gray-50 dark:bg-gray-900">
+    <div class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Scan Image</h1>
+            <button id="theme-toggle" class="p-2 rounded-lg bg-gray-200 dark:bg-gray-700">
+                <i class="fas fa-moon dark:hidden"></i>
+                <i class="fas fa-sun hidden dark:block"></i>
+            </button>
+        </div>
+
+        <!-- Status and Progress -->
+        <div class="mb-6">
+            <div id="status" class="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">Loading images...</div>
+            <div class="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
+                <div id="progress-bar" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
+            </div>
+        </div>
+
+        <!-- Image Preview Thumbnails -->
+        <div class="mb-6 overflow-x-auto">
+            <div id="thumbnails" class="flex gap-4 pb-2"></div>
+        </div>
+
+        <!-- Main Image Container -->
+        <div class="img-container mb-6 border-2 border-gray-300 dark:border-gray-700">
+            <img id="image" src="" alt="Image to scan" class="max-w-full">
+        </div>
+
+        <!-- Controls -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Image Rotation -->
+            <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+                <h2 class="text-lg font-semibold mb-4 dark:text-white">Rotation</h2>
+                <div class="flex gap-4">
+                    <button id="rotate-left-button" class="flex-1 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors">
+                        <i class="fas fa-undo-alt mr-2"></i>Rotate Left
+                    </button>
+                    <button id="rotate-right-button" class="flex-1 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors">
+                        <i class="fas fa-redo-alt mr-2"></i>Rotate Right
+                    </button>
+                </div>
+            </div>
+
+            <!-- Image Adjustments -->
+            <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+                <h2 class="text-lg font-semibold mb-4 dark:text-white">Adjustments</h2>
+                <div class="space-y-4">
+                    <div class="slider-container">
+                        <label for="brightness" class="w-24 dark:text-white">Brightness:</label>
+                        <input type="range" id="brightness" name="brightness" min="0.1" max="3.0" value="1.0" step="0.1" class="accent-blue-500">
+                        <span id="brightness-value" class="slider-value dark:text-white">1.0</span>
+                    </div>
+                    <div class="slider-container">
+                        <label for="contrast" class="w-24 dark:text-white">Contrast:</label>
+                        <input type="range" id="contrast" name="contrast" min="0.1" max="3.0" value="1.5" step="0.1" class="accent-blue-500">
+                        <span id="contrast-value" class="slider-value dark:text-white">1.5</span>
+                    </div>
+                    <div class="slider-container">
+                        <label for="sharpness" class="w-24 dark:text-white">Sharpness:</label>
+                        <input type="range" id="sharpness" name="sharpness" min="0.1" max="3.0" value="1.0" step="0.1" class="accent-blue-500">
+                        <span id="sharpness-value" class="slider-value dark:text-white">1.0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex gap-4 mt-6">
+            <button id="undo-button" class="bg-gray-500 text-white px-6 py-2 rounded hover:bg-gray-600 transition-colors" disabled>
+                <i class="fas fa-undo mr-2"></i>Undo
+            </button>
+            <button id="redo-button" class="bg-gray-500 text-white px-6 py-2 rounded hover:bg-gray-600 transition-colors" disabled>
+                <i class="fas fa-redo mr-2"></i>Redo
+            </button>
+            <button id="process-button" class="flex-1 bg-green-500 text-white px-6 py-2 rounded hover:bg-green-600 transition-colors">
+                <i class="fas fa-magic mr-2"></i>Process Image
+            </button>
+            <button id="create-pdf-button" class="flex-1 bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600 transition-colors" style="display: none;">
+                <i class="fas fa-file-pdf mr-2"></i>Create PDF
+            </button>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.js"></script>
+    <script>
+        const image = document.getElementById('image');
+        const statusDiv = document.getElementById('status');
+        const progressBar = document.getElementById('progress-bar');
+        const processButton = document.getElementById('process-button');
+        const createPdfButton = document.getElementById('create-pdf-button');
+        const rotateLeftButton = document.getElementById('rotate-left-button');
+        const rotateRightButton = document.getElementById('rotate-right-button');
+        const brightnessSlider = document.getElementById('brightness');
+        const contrastSlider = document.getElementById('contrast');
+        const sharpnessSlider = document.getElementById('sharpness');
+        const brightnessValueSpan = document.getElementById('brightness-value');
+        const contrastValueSpan = document.getElementById('contrast-value');
+        const sharpnessValueSpan = document.getElementById('sharpness-value');
+        const undoButton = document.getElementById('undo-button');
+        const redoButton = document.getElementById('redo-button');
+        const thumbnailsContainer = document.getElementById('thumbnails');
+        const themeToggle = document.getElementById('theme-toggle');
+
+        let cropper;
+        let imagesData = [];
+        let currentImageIndex = 0;
+        let outputFolder = "";
+        let adjustmentHistory = [];
+        let historyIndex = -1;
+
+        // Theme handling
+        function initTheme() {
+            if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+            }
+        }
+
+        themeToggle.addEventListener('click', () => {
+            document.documentElement.classList.toggle('dark');
+            localStorage.theme = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+        });
+
+        initTheme();
+
+        // History management
+        function saveAdjustment() {
+            const adjustment = {
+                brightness: brightnessSlider.value,
+                contrast: contrastSlider.value,
+                sharpness: sharpnessSlider.value,
+                rotation: imagesData[currentImageIndex].rotation
+            };
+            
+            historyIndex++;
+            adjustmentHistory.splice(historyIndex);
+            adjustmentHistory.push(adjustment);
+            
+            updateHistoryButtons();
+        }
+
+        function updateHistoryButtons() {
+            undoButton.disabled = historyIndex <= 0;
+            redoButton.disabled = historyIndex >= adjustmentHistory.length - 1;
+        }
+
+        function applyAdjustment(adjustment) {
+            brightnessSlider.value = adjustment.brightness;
+            contrastSlider.value = adjustment.contrast;
+            sharpnessSlider.value = adjustment.sharpness;
+            imagesData[currentImageIndex].rotation = adjustment.rotation;
+            
+            brightnessValueSpan.textContent = adjustment.brightness;
+            contrastValueSpan.textContent = adjustment.contrast;
+            sharpnessValueSpan.textContent = adjustment.sharpness;
+            
+            displayCurrentImage();
+        }
+
+        undoButton.addEventListener('click', () => {
+            if (historyIndex > 0) {
+                historyIndex--;
+                applyAdjustment(adjustmentHistory[historyIndex]);
+            }
+        });
+
+        redoButton.addEventListener('click', () => {
+            if (historyIndex < adjustmentHistory.length - 1) {
+                historyIndex++;
+                applyAdjustment(adjustmentHistory[historyIndex]);
+            }
+        });
+
+        function updateProgress() {
+            const processedCount = imagesData.filter(img => img.processed).length;
+            const progress = (processedCount / imagesData.length) * 100;
+            progressBar.style.width = `${progress}%`;
+            progressBar.style.backgroundColor = progress === 100 ? '#10B981' : '#3B82F6'; // Green when complete, blue otherwise
+        }
+
+        function updateStatus() {
+            const processedCount = imagesData.filter(img => img.processed).length;
+            statusDiv.textContent = `Processing image ${currentImageIndex + 1} of ${imagesData.length} (${processedCount} processed)`;
+            updateProgress();
+        }
+
+        function createThumbnails() {
+            thumbnailsContainer.innerHTML = '';
+            imagesData.forEach((imgData, index) => {
+                const thumbContainer = document.createElement('div');
+                thumbContainer.className = 'relative';
+                
+                const thumb = document.createElement('img');
+                thumb.src = `/serve_image/${imgData.filename}`;
+                thumb.classList.add('thumbnail');
+                if (index === currentImageIndex) {
+                    thumb.classList.add('active');
+                }
+                
+                // Add processing status indicator
+                const statusIndicator = document.createElement('div');
+                statusIndicator.className = 'absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center text-xs';
+                if (imgData.processed) {
+                    statusIndicator.className += ' bg-green-500 text-white';
+                    statusIndicator.innerHTML = '<i class="fas fa-check"></i>';
+                } else {
+                    statusIndicator.className += ' bg-gray-300';
+                }
+                
+                thumbContainer.appendChild(thumb);
+                thumbContainer.appendChild(statusIndicator);
+                
+                thumbContainer.addEventListener('click', () => {
+                    currentImageIndex = index;
+                    displayCurrentImage();
+                    updateThumbnails();
+                });
+                
+                thumbnailsContainer.appendChild(thumbContainer);
+            });
+        }
+
+        function updateThumbnails() {
+            const thumbContainers = thumbnailsContainer.children;
+            Array.from(thumbContainers).forEach((container, index) => {
+                const thumb = container.querySelector('.thumbnail');
+                const statusIndicator = container.querySelector('div:last-child');
+                
+                thumb.classList.toggle('active', index === currentImageIndex);
+                if (imagesData[index].processed) {
+                    statusIndicator.className = 'absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center text-xs bg-green-500 text-white';
+                    statusIndicator.innerHTML = '<i class="fas fa-check"></i>';
+                } else {
+                    statusIndicator.className = 'absolute -top-2 -right-2 w-5 h-5 rounded-full bg-gray-300';
+                    statusIndicator.innerHTML = '';
+                }
+            });
+        }
+
+            function initializeImagesData(data) {
+            imagesData = (data.images_data || []).map(img => ({ 
+                ...img, 
+                rotation: 0,
+                processed: false,
+                adjustments: {
+                    brightness: 1.0,
+                    contrast: 1.5,
+                    sharpness: 1.0
+                }
+            }));
+            outputFolder = data.output_folder || "";
+            createThumbnails();
+        }
+
+        function displayCurrentImage() {
+            if (cropper) {
+                cropper.destroy();
+            }
+            
+            image.src = `/serve_image/${imagesData[currentImageIndex].filename}`;
+            image.onload = function() {
+                cropper = new Cropper(image, {
+                    aspectRatio: NaN,
+                    viewMode: 2,
+                    autoCropArea: 1,
+                    ready: function () {
+                        cropper.rotate(imagesData[currentImageIndex].rotation);
+                    }
+                });
+                updateStatus();
+                processButton.style.display = 'block';
+                createPdfButton.style.display = 'none';
+                updateThumbnails();
+            };
+            
+            image.onerror = function() {
+                statusDiv.textContent = `Error loading image: ${imagesData[currentImageIndex].filename}`;
+                processButton.style.display = 'none';
+                createPdfButton.style.display = 'none';
+            };
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey || e.metaKey) {
+                if (e.key === 'z') {
+                    e.preventDefault();
+                    if (!undoButton.disabled) undoButton.click();
+                } else if (e.key === 'y') {
+                    e.preventDefault();
+                    if (!redoButton.disabled) redoButton.click();
+                }
+            } else if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                rotateLeftButton.click();
+            } else if (e.key === 'ArrowRight') {
+                e.preventDefault();
+                rotateRightButton.click();
+            }
+        });
+
+        // Touch gesture support
+        let touchStartX = 0;
+        let touchStartY = 0;
+
+        image.addEventListener('touchstart', (e) => {
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+        });
+
+        image.addEventListener('touchend', (e) => {
+            const touchEndX = e.changedTouches[0].clientX;
+            const touchEndY = e.changedTouches[0].clientY;
+            const deltaX = touchEndX - touchStartX;
+            const deltaY = touchEndY - touchStartY;
+
+            if (Math.abs(deltaX) > Math.abs(deltaY)) {
+                if (deltaX > 50) {
+                    rotateRightButton.click();
+                } else if (deltaX < -50) {
+                    rotateLeftButton.click();
+                }
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const scanDataScript = document.getElementById('scan-data');
+            if (scanDataScript) {
+                const data = JSON.parse(scanDataScript.textContent);
+                initializeImagesData(data);
+            }
+
+            if (imagesData && imagesData.length > 0) {
+                displayCurrentImage();
+            } else {
+                statusDiv.textContent = "No images to process.";
+                processButton.style.display = 'none';
+                createPdfButton.style.display = 'none';
+            }
+
+            processButton.addEventListener('click', function() {
+                const cropData = cropper.getData();
+                const currentImage = imagesData[currentImageIndex];
+
+                processButton.disabled = true;
+                statusDiv.textContent = `Processing ${currentImage.filename}...`;
+
+                fetch('/process', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        image_path: currentImage.full_path,
+                        crop_coords: {
+                            x: cropData.x,
+                            y: cropData.y,
+                            width: cropData.width,
+                            height: cropData.height
+                        },
+                        brightness: parseFloat(brightnessSlider.value),
+                        contrast: parseFloat(contrastSlider.value),
+                        sharpness: parseFloat(sharpnessSlider.value),
+                        rotation: currentImage.rotation,
+                        output_folder: outputFolder
+                    }),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    processButton.disabled = false;
+                    if (data.status === 'success') {
+                        // Mark current image as processed
+                        imagesData[currentImageIndex].processed = true;
+                        
+                        currentImageIndex++;
+                        updateProgress();
+                        if (currentImageIndex < imagesData.length) {
+                            displayCurrentImage();
+                            // Reset adjustment history for new image
+                            adjustmentHistory = [];
+                            historyIndex = -1;
+                            updateHistoryButtons();
+                        } else {
+                            // Check if all images were processed successfully
+                            const allProcessed = imagesData.every(img => img.processed);
+                            if (allProcessed) {
+                                statusDiv.textContent = "All images processed. Ready to create PDF.";
+                                processButton.style.display = 'none';
+                                createPdfButton.style.display = 'block';
+                            } else {
+                                statusDiv.textContent = "Some images need processing. Going back to first unprocessed image.";
+                                currentImageIndex = imagesData.findIndex(img => !img.processed);
+                                displayCurrentImage();
+                            }
+                        }
+                    } else {
+                        statusDiv.textContent = 'Error processing image: ' + data.message;
+                    }
+                })
+                .catch((error) => {
+                    processButton.disabled = false;
+                    console.error('Error:', error);
+                    statusDiv.textContent = 'An error occurred while processing the image.';
+                });
+            });
+
+            createPdfButton.addEventListener('click', function() {
+                createPdfButton.disabled = true;
+                statusDiv.textContent = "Creating PDF...";
+
+                fetch('/create_final_pdf', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        output_folder: outputFolder
+                    }),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    createPdfButton.disabled = false;
+                    if (data.status === 'success') {
+                        statusDiv.textContent = `PDF created successfully: ${data.output_path}`;
+                    } else {
+                        statusDiv.textContent = 'Error creating PDF: ' + data.message;
+                    }
+                })
+                .catch((error) => {
+                    createPdfButton.disabled = false;
+                    console.error('Error:', error);
+                    statusDiv.textContent = 'An error occurred while creating the PDF.';
+                });
+            });
+
+            rotateLeftButton.addEventListener('click', function() {
+                imagesData[currentImageIndex].rotation = (imagesData[currentImageIndex].rotation - 90 + 360) % 360;
+                displayCurrentImage();
+                saveAdjustment();
+            });
+
+            rotateRightButton.addEventListener('click', function() {
+                imagesData[currentImageIndex].rotation = (imagesData[currentImageIndex].rotation + 90) % 360;
+                displayCurrentImage();
+                saveAdjustment();
+            });
+
+            const sliders = [brightnessSlider, contrastSlider, sharpnessSlider];
+            const valueSpans = [brightnessValueSpan, contrastValueSpan, sharpnessValueSpan];
+
+            sliders.forEach((slider, index) => {
+                slider.addEventListener('input', function() {
+                    valueSpans[index].textContent = this.value;
+                });
+                slider.addEventListener('change', function() {
+                    saveAdjustment();
+                });
+            });
+        });
+    </script>
+</body>
+</html>

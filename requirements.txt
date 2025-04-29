@@ -13,3 +13,8 @@ markdown
 selenium==4.20.0
 questionary
 rich
+openpyxl
+pikepdf
+img2pdf
+opencv-python
+numpy

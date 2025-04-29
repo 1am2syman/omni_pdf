@@ -6,6 +6,7 @@ from features.converter import convert_pdf_to_text, convert_folder_pdfs_to_text
 from features.splitter import split_pdf
 from features.reorder import start_editor
 from rich.progress import Progress
+from features.compressor import PDFCompressor
 from features.conversions import (
     PDFToImageConverter,
     ImageToPDFConverter,
@@ -14,6 +15,66 @@ from features.conversions import (
     HTMLToPDFConverter,
     handle_conversion
 )
+from features.scanner import app as scanner_app
+import threading
+import webbrowser
+
+def scan_to_pdf_cli():
+    """Scan image(s) to PDF with a local web interface."""
+    input_path = questionary.text(
+        "Scan Image to PDF: Enter image file or folder path",
+        validate=lambda path: os.path.exists(path) or "Path does not exist"
+    ).ask()
+    if not input_path:
+        return
+
+    output_folder = questionary.text(
+        "Enter output folder (leave blank for same as input):",
+        default=''
+    ).ask()
+
+    # Determine if input is file or folder
+    image_paths = []
+    if os.path.isfile(input_path):
+        image_paths.append(input_path)
+    elif os.path.isdir(input_path):
+        # For now, just get image files. We'll handle multiple images in the Flask app later.
+        for filename in os.listdir(input_path):
+            if filename.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff')):
+                image_paths.append(os.path.join(input_path, filename))
+        if not image_paths:
+            print("No supported image files found in the specified folder.")
+            return
+    else:
+        print("Invalid input path. Please provide a valid image file or folder.")
+        return
+
+    if not image_paths:
+        print("No supported image files found.")
+        return
+
+    print(f"Launching scan interface for {len(image_paths)} image(s).")
+
+    # Run Flask app in a separate thread
+    def run_flask():
+        scanner_app.run(debug=False, port=5000) # Run on a specific port
+
+    flask_thread = threading.Thread(target=run_flask)
+    flask_thread.daemon = True # Allow the main program to exit even if the thread is running
+    flask_thread.start()
+
+    # Open the browser to the scan interface
+    # Pass all image paths as a comma-separated string for now
+    import urllib.parse
+    encoded_image_paths = urllib.parse.quote_plus(",".join(image_paths))
+    encoded_output_folder = urllib.parse.quote_plus(output_folder)
+    scan_url = f"http://localhost:5000/scan?image_paths={encoded_image_paths}&output_folder={encoded_output_folder}"
+    print(f"Opening browser to {scan_url}")
+    webbrowser.open(scan_url)
+
+    # Keep the main thread alive while the Flask thread is running
+    input("Press Enter to close the scan interface and continue...")
+
 
 def convert_to_text_cli():
     """Convert PDF to text or markdown format."""
@@ -176,6 +237,43 @@ def reorder_cli():
     start_editor(pdf_path)
     print("Reorder session ended.")
 
+def compress_cli():
+    """Compress a PDF file."""
+    input_path = questionary.text(
+        "Compress PDF: Enter input file path",
+        validate=lambda path: os.path.exists(path) and os.path.isfile(path) or "Invalid file path"
+    ).ask()
+    if not input_path:
+        return
+
+    output_path = questionary.text(
+        "Compress PDF: Enter output file path (leave blank for compressed_[filename])",
+        default=''
+    ).ask()
+    if not output_path:
+        input_dir = os.path.dirname(input_path)
+        input_filename = os.path.basename(input_path)
+        name, ext = os.path.splitext(input_filename)
+        output_path = os.path.join(input_dir, f"compressed_{name}{ext}")
+
+    # Add questionary for quality
+    quality_str = questionary.text("Enter compression quality (0.0 to 1.0, lower is more compression):", default='0.7').ask()
+    try:
+        quality = float(quality_str)
+        if not 0.0 <= quality <= 1.0:
+            print("Invalid quality value. Must be between 0.0 and 1.0. Using default 0.7")
+            quality = 0.7
+    except ValueError:
+        print("Invalid quality value. Using default 0.7")
+        quality = 0.7
+
+
+    print(f"Compressing '{input_path}' to '{output_path}' with quality {quality}...")
+    compressor = PDFCompressor(input_path)
+    compressor.compress(quality=quality).save(output_path)
+    print("Compression complete.")
+
+
 def convert_file_type_cli():
     """File conversion tools."""
     convert_commands = {
@@ -269,7 +367,9 @@ def main():
             "Perform OCR": ocr_cli,
             "Merge PDFs": merge_cli,
             "Reorder Pages": reorder_cli,
+            "Compress PDF": compress_cli,
             "Convert File Type": convert_file_type_cli,
+            "Scan Image to PDF": scan_to_pdf_cli,
             "Exit": None
         }
         choice = questionary.select(
