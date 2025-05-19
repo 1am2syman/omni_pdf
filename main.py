@@ -16,8 +16,108 @@ from features.conversions import (
     handle_conversion
 )
 from features.scanner import app as scanner_app
+from features.password_remover import remove_pdf_password_core, remove_passwords_from_folder_core, password_remover_bp # Import new feature
 import threading
 import webbrowser
+
+# Register blueprints with the scanner_app if it's the central Flask app for web features
+# This should be done before the app is run.
+# If scanner_app is only for scanning, then password_remover might need its own app instance or be CLI-only.
+# For now, let's assume scanner_app can host multiple web features.
+scanner_app.register_blueprint(password_remover_bp, url_prefix='/password_remover')
+
+def remove_password_cli():
+    """Remove password from a PDF file or all PDF files in a folder."""
+    process_type = questionary.select(
+        "Remove PDF Password: Process a single file or a folder?",
+        choices=["Single File", "Folder"],
+        default="Single File"
+    ).ask()
+
+    if not process_type:
+        return
+
+    password = questionary.password("Enter PDF password (leave blank if none or to try empty):").ask()
+    if password is None: # Handle Ctrl+C
+        return
+
+    if process_type == "Single File":
+        pdf_path = questionary.text(
+            "Enter PDF file path:",
+            validate=lambda path: (os.path.exists(path) and os.path.isfile(path) and path.lower().endswith('.pdf')) or "Invalid PDF file path"
+        ).ask()
+        if not pdf_path:
+            return
+
+        output_folder_single = questionary.text(
+            "Enter output folder for the decrypted file (default: 'decrypted_output'):",
+            default='decrypted_output'
+        ).ask()
+        if output_folder_single is None: return # User pressed Ctrl+C
+
+        # Determine absolute output path for single file
+        if os.path.isabs(output_folder_single):
+            absolute_output_folder = output_folder_single
+        else:
+            absolute_output_folder = os.path.abspath(output_folder_single)
+        
+        os.makedirs(absolute_output_folder, exist_ok=True)
+        print(f"Attempting to remove password from '{os.path.basename(pdf_path)}'...")
+        result = remove_pdf_password_core(pdf_path, password, absolute_output_folder)
+
+        if result["status"] == "success":
+            print(f"Successfully removed password. Decrypted file saved to: {result['output_path']}")
+        elif result["status"] == "info":
+            print(f"Info: {result['message']} Copied file to: {result['output_path']}")
+        else:
+            print(f"Error: {result['message']}")
+
+    elif process_type == "Folder":
+        input_folder_path = questionary.text(
+            "Enter folder path containing PDFs:",
+            validate=lambda path: (os.path.exists(path) and os.path.isdir(path)) or "Invalid folder path"
+        ).ask()
+        if not input_folder_path:
+            return
+
+        output_folder_folder = questionary.text(
+            "Enter output folder (leave blank to save in the input folder, or specify a different one e.g. 'decrypted_output'):",
+            default='' # Default is empty string, meaning use input folder
+        ).ask()
+        if output_folder_folder is None: return # User pressed Ctrl+C
+
+        # Determine absolute output path for folder processing
+        if not output_folder_folder: # User left it blank
+            absolute_output_folder = os.path.abspath(input_folder_path)
+        elif os.path.isabs(output_folder_folder):
+            absolute_output_folder = output_folder_folder
+        else:
+            absolute_output_folder = os.path.abspath(output_folder_folder)
+
+        os.makedirs(absolute_output_folder, exist_ok=True) # Core function also does this, but good to ensure
+        print(f"Attempting to remove passwords from PDFs in folder '{input_folder_path}' (Output to: '{absolute_output_folder}')...")
+        
+        results = remove_passwords_from_folder_core(input_folder_path, password, absolute_output_folder)
+
+        print(f"\n--- Folder Processing Summary ---")
+        print(f"Status: {results.get('status')}")
+        print(f"Message: {results.get('message')}")
+        summary = results.get('summary', {})
+        print(f"  Total Files Scanned: {summary.get('total_files_scanned', 0)}")
+        print(f"  Successful Removals: {summary.get('successful_removals', 0)}")
+        print(f"  Failed Removals: {summary.get('failed_removals', 0)}")
+        print(f"  Not Encrypted/Copied: {summary.get('not_encrypted_or_copied', 0)}")
+        
+        if results.get("details"):
+            print("\n--- File Details ---")
+            for detail in results["details"]:
+                print(f"  File: {detail['file_name']}")
+                print(f"    Status: {detail['status']}")
+                print(f"    Message: {detail['message']}")
+                if "output_path" in detail:
+                    print(f"    Output: {detail['output_path']}")
+        print("-----------------------------")
+
 
 def scan_to_pdf_cli():
     """Scan image(s) to PDF with a local web interface."""
@@ -202,31 +302,75 @@ def ocr_cli():
             ocr_folder_pdfs(pdf_path, output_type, output_format, force_ocr, progress, task)
 
 def merge_cli():
-    """Combine multiple PDFs into one file."""
-    from features.merger import merge_pdfs
-    pdf_paths = []
-    while True:
-        pdf_path = questionary.text(
-            "Merge: Add PDF file (blank when done)",
-            validate=lambda path: os.path.exists(path) and os.path.isfile(path) or "Invalid file path"
-        ).ask()
-        if not pdf_path:
-            break
-        pdf_paths.append(pdf_path)
+    """Combine multiple PDFs into one file or merge all PDFs in a folder."""
+    from features.merger import merge_pdfs, merge_pdfs_in_folder
 
-    if not pdf_paths:
-        print("Error: No PDF files specified")
+    merge_type = questionary.select(
+        "Merge PDFs: Merge individual files or all files in a folder?",
+        choices=["Individual Files", "Folder"],
+        default="Individual Files"
+    ).ask()
+
+    if not merge_type:
         return
 
-    output = questionary.text("Enter output filename:", default='merged.pdf').ask()
-    if not output:
-        return
-
-    from rich.progress import Progress
+    # Output path will be determined based on merge_type
 
     with Progress() as progress:
-        task = progress.add_task(f"Merging [bold green]{len(pdf_paths)}[/bold green] files into [bold blue]'{output}'[/bold blue]...", total=len(pdf_paths))
-        merge_pdfs(pdf_paths, output, progress, task)
+        if merge_type == "Individual Files":
+            output_filename = questionary.text(
+                "Enter output filename for merged PDF:",
+                default='merged.pdf'
+            ).ask()
+            if not output_filename:
+                return
+
+            pdf_paths = []
+            while True:
+                pdf_path = questionary.text(
+                    "Merge: Add PDF file (blank when done)",
+                    validate=lambda path: os.path.exists(path) and os.path.isfile(path) and path.lower().endswith('.pdf') or "Invalid PDF file path"
+                ).ask()
+                if not pdf_path:
+                    break
+                pdf_paths.append(pdf_path)
+
+            if not pdf_paths:
+                print("Error: No PDF files specified")
+                return
+
+            task = progress.add_task(f"Merging [bold green]{len(pdf_paths)}[/bold green] files into [bold blue]'{output_filename}'[/bold blue]...", total=len(pdf_paths))
+            merge_pdfs(pdf_paths, output_filename, progress, task)
+
+        elif merge_type == "Folder":
+            folder_path = questionary.text(
+                "Enter folder path containing PDFs:",
+                validate=lambda path: (os.path.exists(path) and os.path.isdir(path)) or "Invalid folder path"
+            ).ask()
+            if not folder_path:
+                return
+
+            default_output_name = 'merged.pdf'
+            # Ensure folder_path is absolute for reliable os.path.join behavior and clear display
+            abs_folder_path = os.path.abspath(folder_path)
+            default_output_path = os.path.join(abs_folder_path, default_output_name)
+
+            output_path_str = questionary.text(
+                f"Enter output path for merged PDF (default: '{default_output_path}'):",
+                default=default_output_path
+            ).ask()
+            if not output_path_str:
+                return
+
+            # Count PDF files in the folder for progress bar total
+            try:
+                pdf_files_in_folder = [f for f in os.listdir(folder_path) if f.lower().endswith('.pdf')]
+                num_files_in_folder = len(pdf_files_in_folder)
+            except Exception:
+                num_files_in_folder = 1 # Fallback
+
+            task = progress.add_task(f"Merging files in [bold green]'{os.path.basename(folder_path)}'[/bold green] into [bold blue]'{os.path.basename(output_path_str)}'[/bold blue]...", total=num_files_in_folder)
+            merge_pdfs_in_folder(folder_path, output_path_str, progress, task)
 
 def reorder_cli():
     """Reorder pages in a PDF interactively."""
@@ -370,6 +514,7 @@ def main():
             "Compress PDF": compress_cli,
             "Convert File Type": convert_file_type_cli,
             "Scan Image to PDF": scan_to_pdf_cli,
+            "Remove PDF Password": remove_password_cli,
             "Exit": None
         }
         choice = questionary.select(

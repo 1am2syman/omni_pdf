@@ -1,28 +1,162 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scan Image</title>
+    <title>PDF Scanner</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.css">
     <style>
+        body {
+            background-color: #f0f4f8;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 20px;
+            background-color: white;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .toolbar {
+            display: flex;
+            align-items: center;
+            padding: 8px 20px;
+            background-color: white;
+            border-bottom: 1px solid #e5e7eb;
+            gap: 10px;
+        }
+        .tool-button {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background-color: #f3f4f6;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .tool-button:hover {
+            background-color: #e5e7eb;
+        }
+        .tool-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .finish-button {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 8px 16px;
+            background-color: #2563eb;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background-color 0.2s;
+        }
+        .finish-button:hover {
+            background-color: #1d4ed8;
+        }
+        .finish-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .document-area {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            padding: 20px;
+        }
+        .document-thumbnail {
+            position: relative;
+            width: 120px;
+            height: 160px;
+            background-color: white;
+            border-radius: 4px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .document-thumbnail.active {
+            border: 3px solid #2563eb;
+            transform: scale(1.05);
+        }
+        .document-thumbnail img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .document-label {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 6px;
+            background-color: rgba(0, 0, 0, 0.6);
+            color: white;
+            font-size: 12px;
+            text-align: center;
+        }
+        .add-document {
+            width: 120px;
+            height: 160px;
+            border: 2px dashed #d1d5db;
+            border-radius: 4px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: border-color 0.2s;
+            background-color: white;
+        }
+        .add-document:hover {
+            border-color: #2563eb;
+        }
+        .add-document i {
+            font-size: 24px;
+            color: #2563eb;
+            margin-bottom: 8px;
+        }
+        .add-document-text {
+            color: #2563eb;
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+        .add-document-subtext {
+            color: #6b7280;
+            font-size: 12px;
+            text-align: center;
+            max-width: 120px;
+        }
         .img-container {
             height: 60vh;
+            max-width: 1200px;
+            margin: 20px auto;
             background: #f8f9fa;
             border-radius: 8px;
             overflow: hidden;
+            border: 1px solid #e5e7eb;
+            position: relative;
         }
         .cropper-container {
             width: 100% !important;
             height: 100% !important;
         }
         .slider-container {
-            width: 100%;
             display: flex;
             align-items: center;
             gap: 1rem;
+            margin-bottom: 10px;
+            padding: 0 20px;
+        }
+        .slider-container label {
+            min-width: 100px;
         }
         .slider-container input[type="range"] {
             flex-grow: 1;
@@ -31,216 +165,307 @@
             min-width: 3rem;
             text-align: right;
         }
-        .thumbnail {
-            width: 80px;
-            height: 80px;
-            object-fit: cover;
+        .status-bar {
+            display: flex;
+            align-items: center;
+            padding: 10px 20px;
+            background-color: white;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .progress-container {
+            flex-grow: 1;
+            height: 4px;
+            background-color: #e5e7eb;
+            border-radius: 2px;
+            margin: 0 10px;
+        }
+        .progress-bar {
+            height: 100%;
+            background-color: #2563eb;
+            border-radius: 2px;
+            width: 0%;
+        }
+        .adjustments-panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 300px;
+            z-index: 100;
+            background-color: white;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        /* Apply filters only to the cropped area */
+        .cropper-view-box {
+            outline: none !important;
+        }
+        /* Processing overlay */
+        .processing-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            color: white;
+            z-index: 1000;
+        }
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 4px solid white;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 16px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        /* Toggle switch */
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+            margin: 0 10px;
+        }
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .toggle-slider {
+            position: absolute;
             cursor: pointer;
-            transition: all 0.2s;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 24px;
         }
-        .thumbnail.active {
-            border: 3px solid #3b82f6;
-            transform: scale(1.1);
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
         }
-        @media (max-width: 640px) {
-            .img-container {
-                height: 40vh;
-            }
+        input:checked + .toggle-slider {
+            background-color: #2563eb;
         }
-        /* Dark mode styles */
-        .dark {
-            background-color: #1a1a1a;
-            color: #ffffff;
+        input:checked + .toggle-slider:before {
+            transform: translateX(26px);
         }
-        .dark .img-container {
-            background: #2d2d2d;
+        /* No image placeholder */
+        .no-image-placeholder {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            color: #9ca3af;
+            background-color: #f8f9fa;
         }
     </style>
     <script type="application/json" id="scan-data">
         {{ { 'images_data': images_data, 'output_folder': output_folder } | tojson }}
     </script>
 </head>
-<body class="h-full bg-gray-50 dark:bg-gray-900">
-    <div class="container mx-auto px-4 py-8">
-        <!-- Header -->
-        <div class="flex justify-between items-center mb-6">
-            <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Scan Image</h1>
-            <button id="theme-toggle" class="p-2 rounded-lg bg-gray-200 dark:bg-gray-700">
-                <i class="fas fa-moon dark:hidden"></i>
-                <i class="fas fa-sun hidden dark:block"></i>
-            </button>
+<body>
+    <div class="header">
+        <div class="flex items-center">
+            <h1 class="text-xl font-bold">PDF Scanner</h1>
         </div>
+    </div>
 
-        <!-- Status and Progress -->
-        <div class="mb-6">
-            <div id="status" class="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">Loading images...</div>
-            <div class="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
-                <div id="progress-bar" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
+    <div class="status-bar">
+        <div id="status" class="text-sm text-gray-600">Loading images...</div>
+        <div class="progress-container">
+            <div id="progress-bar" class="progress-bar"></div>
+        </div>
+    </div>
+
+    <div class="toolbar">
+        <button class="tool-button" id="zoom-in-button" title="Zoom In">
+            <i class="fas fa-search-plus"></i>
+        </button>
+        <button class="tool-button" id="zoom-out-button" title="Zoom Out">
+            <i class="fas fa-search-minus"></i>
+        </button>
+        <button class="tool-button" id="rotate-left-button" title="Rotate Left">
+            <i class="fas fa-rotate-left"></i>
+        </button>
+        <button class="tool-button" id="rotate-right-button" title="Rotate Right">
+            <i class="fas fa-rotate-right"></i>
+        </button>
+        <button class="tool-button" id="auto-detect-button" title="Auto Detect Document">
+            <i class="fas fa-crop-alt"></i>
+        </button>
+        <button class="tool-button" id="reset-crop-button" title="Reset Crop">
+            <i class="fas fa-expand-arrows-alt"></i>
+        </button>
+        
+        <div class="flex items-center ml-4">
+            <span class="text-sm text-gray-700">Auto Enhance</span>
+            <label class="toggle-switch">
+                <input type="checkbox" id="auto-enhance-toggle" checked>
+                <span class="toggle-slider"></span>
+            </label>
+        </div>
+        
+        <div class="flex-grow"></div>
+        
+        <button class="finish-button" id="finish-button">
+            Process
+            <i class="fas fa-arrow-right ml-2"></i>
+        </button>
+    </div>
+
+    <div class="flex">
+        <!-- Left sidebar with thumbnails -->
+        <div class="w-1/5 bg-white p-4 border-r border-gray-200 overflow-y-auto" style="max-height: calc(100vh - 120px);">
+            <h3 class="text-lg font-semibold mb-4">Pages</h3>
+            <div id="thumbnails" class="space-y-4">
+                <!-- Document thumbnails will be dynamically added here -->
+            </div>
+            <div class="mt-4">
+                <button id="add-page-button" class="w-full py-2 px-4 bg-blue-500 text-white rounded hover:bg-blue-600 flex items-center justify-center">
+                    <i class="fas fa-plus mr-2"></i> Add Page
+                </button>
             </div>
         </div>
-
-        <!-- Image Preview Thumbnails -->
-        <div class="mb-6 overflow-x-auto">
-            <div id="thumbnails" class="flex gap-4 pb-2"></div>
-        </div>
-
-        <!-- Main Image Container -->
-        <div class="img-container mb-6 border-2 border-gray-300 dark:border-gray-700">
-            <img id="image" src="" alt="Image to scan" class="max-w-full">
-        </div>
-
-        <!-- Controls -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <!-- Image Rotation -->
-            <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
-                <h2 class="text-lg font-semibold mb-4 dark:text-white">Rotation</h2>
-                <div class="flex gap-4">
-                    <button id="rotate-left-button" class="flex-1 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors">
-                        <i class="fas fa-undo-alt mr-2"></i>Rotate Left
-                    </button>
-                    <button id="rotate-right-button" class="flex-1 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors">
-                        <i class="fas fa-redo-alt mr-2"></i>Rotate Right
-                    </button>
+        
+        <!-- Main content area -->
+        <div class="w-4/5">
+            <!-- Main Image Container Section -->
+            <section class="img-container relative">
+                <img id="image" src="" alt="Image to scan" class="max-w-full">
+                
+                <!-- Processing overlay -->
+                <div id="processing-overlay" class="processing-overlay hidden">
+                    <div class="spinner"></div>
+                    <p class="text-lg">Processing image...</p>
                 </div>
-            </div>
-
-            <!-- Image Adjustments -->
-            <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
-                <h2 class="text-lg font-semibold mb-4 dark:text-white">Adjustments</h2>
-                <div class="space-y-4">
-                    <div class="slider-container">
-                        <label for="brightness" class="w-24 dark:text-white">Brightness:</label>
-                        <input type="range" id="brightness" name="brightness" min="0.1" max="3.0" value="1.0" step="0.1" class="accent-blue-500">
-                        <span id="brightness-value" class="slider-value dark:text-white">1.0</span>
-                    </div>
-                    <div class="slider-container">
-                        <label for="contrast" class="w-24 dark:text-white">Contrast:</label>
-                        <input type="range" id="contrast" name="contrast" min="0.1" max="3.0" value="1.5" step="0.1" class="accent-blue-500">
-                        <span id="contrast-value" class="slider-value dark:text-white">1.5</span>
-                    </div>
-                    <div class="slider-container">
-                        <label for="sharpness" class="w-24 dark:text-white">Sharpness:</label>
-                        <input type="range" id="sharpness" name="sharpness" min="0.1" max="3.0" value="1.0" step="0.1" class="accent-blue-500">
-                        <span id="sharpness-value" class="slider-value dark:text-white">1.0</span>
+                
+                <!-- No image placeholder -->
+                <div id="no-image-placeholder" class="no-image-placeholder hidden">
+                    <i class="fas fa-image text-6xl mb-4"></i>
+                    <p class="text-xl">No image selected</p>
+                    <p class="mt-2">Select an image from the sidebar or add a new one</p>
+                </div>
+                
+                <!-- Image Adjustments Panel -->
+                <div class="adjustments-panel">
+                    <h3 class="text-lg font-semibold mb-4">Image Adjustments</h3>
+                    <div class="space-y-4">
+                        <div class="slider-container">
+                            <label for="brightness">Brightness:</label>
+                            <input type="range" id="brightness" name="brightness" min="0.1" max="3.0" value="1.0" step="0.1" class="accent-blue-500">
+                            <span id="brightness-value" class="slider-value">1.0</span>
+                        </div>
+                        <div class="slider-container">
+                            <label for="contrast">Contrast:</label>
+                            <input type="range" id="contrast" name="contrast" min="0.1" max="3.0" value="1.5" step="0.1" class="accent-blue-500">
+                            <span id="contrast-value" class="slider-value">1.5</span>
+                        </div>
+                        <div class="slider-container">
+                            <label for="sharpness">Sharpness:</label>
+                            <input type="range" id="sharpness" name="sharpness" min="0.1" max="3.0" value="1.0" step="0.1" class="accent-blue-500">
+                            <span id="sharpness-value" class="slider-value">1.0</span>
+                        </div>
+                        <div class="flex justify-end mt-2">
+                            <button id="reset-adjustments" class="px-3 py-1 bg-gray-200 text-gray-700 rounded text-sm hover:bg-gray-300">
+                                Reset
+                            </button>
+                        </div>
                     </div>
                 </div>
-            </div>
-        </div>
-
-        <!-- Action Buttons -->
-        <div class="flex gap-4 mt-6">
-            <button id="undo-button" class="bg-gray-500 text-white px-6 py-2 rounded hover:bg-gray-600 transition-colors" disabled>
-                <i class="fas fa-undo mr-2"></i>Undo
-            </button>
-            <button id="redo-button" class="bg-gray-500 text-white px-6 py-2 rounded hover:bg-gray-600 transition-colors" disabled>
-                <i class="fas fa-redo mr-2"></i>Redo
-            </button>
-            <button id="process-button" class="flex-1 bg-green-500 text-white px-6 py-2 rounded hover:bg-green-600 transition-colors">
-                <i class="fas fa-magic mr-2"></i>Process Image
-            </button>
-            <button id="create-pdf-button" class="flex-1 bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600 transition-colors" style="display: none;">
-                <i class="fas fa-file-pdf mr-2"></i>Create PDF
-            </button>
+            </section>
         </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.js"></script>
     <script>
+        // DOM Elements
         const image = document.getElementById('image');
         const statusDiv = document.getElementById('status');
         const progressBar = document.getElementById('progress-bar');
-        const processButton = document.getElementById('process-button');
-        const createPdfButton = document.getElementById('create-pdf-button');
+        const finishButton = document.getElementById('finish-button');
         const rotateLeftButton = document.getElementById('rotate-left-button');
         const rotateRightButton = document.getElementById('rotate-right-button');
+        const zoomInButton = document.getElementById('zoom-in-button');
+        const zoomOutButton = document.getElementById('zoom-out-button');
+        const autoDetectButton = document.getElementById('auto-detect-button');
+        const resetCropButton = document.getElementById('reset-crop-button');
+        const autoEnhanceToggle = document.getElementById('auto-enhance-toggle');
         const brightnessSlider = document.getElementById('brightness');
         const contrastSlider = document.getElementById('contrast');
         const sharpnessSlider = document.getElementById('sharpness');
         const brightnessValueSpan = document.getElementById('brightness-value');
         const contrastValueSpan = document.getElementById('contrast-value');
         const sharpnessValueSpan = document.getElementById('sharpness-value');
-        const undoButton = document.getElementById('undo-button');
-        const redoButton = document.getElementById('redo-button');
         const thumbnailsContainer = document.getElementById('thumbnails');
-        const themeToggle = document.getElementById('theme-toggle');
+        const addPageButton = document.getElementById('add-page-button');
+        const resetAdjustmentsButton = document.getElementById('reset-adjustments');
+        const processingOverlay = document.getElementById('processing-overlay');
+        const noImagePlaceholder = document.getElementById('no-image-placeholder');
 
+        // State variables
         let cropper;
         let imagesData = [];
         let currentImageIndex = 0;
         let outputFolder = "";
-        let adjustmentHistory = [];
-        let historyIndex = -1;
+        let isProcessingMode = true; // Track if we're in processing or finishing mode
+        let zoomLevel = 1; // Track zoom level
 
-        // Theme handling
-        function initTheme() {
-            if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-                document.documentElement.classList.add('dark');
+        // Default adjustment values
+        const defaultAdjustments = {
+            brightness: 1.0,
+            contrast: 1.5,
+            sharpness: 1.0
+        };
+
+        function showProcessingOverlay(show = true) {
+            processingOverlay.classList.toggle('hidden', !show);
+        }
+
+        function showNoImagePlaceholder(show = true) {
+            noImagePlaceholder.classList.toggle('hidden', !show);
+            if (image) {
+                image.classList.toggle('hidden', show);
             }
         }
-
-        themeToggle.addEventListener('click', () => {
-            document.documentElement.classList.toggle('dark');
-            localStorage.theme = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
-        });
-
-        initTheme();
-
-        // History management
-        function saveAdjustment() {
-            const adjustment = {
-                brightness: brightnessSlider.value,
-                contrast: contrastSlider.value,
-                sharpness: sharpnessSlider.value,
-                rotation: imagesData[currentImageIndex].rotation
-            };
-            
-            historyIndex++;
-            adjustmentHistory.splice(historyIndex);
-            adjustmentHistory.push(adjustment);
-            
-            updateHistoryButtons();
-        }
-
-        function updateHistoryButtons() {
-            undoButton.disabled = historyIndex <= 0;
-            redoButton.disabled = historyIndex >= adjustmentHistory.length - 1;
-        }
-
-        function applyAdjustment(adjustment) {
-            brightnessSlider.value = adjustment.brightness;
-            contrastSlider.value = adjustment.contrast;
-            sharpnessSlider.value = adjustment.sharpness;
-            imagesData[currentImageIndex].rotation = adjustment.rotation;
-            
-            brightnessValueSpan.textContent = adjustment.brightness;
-            contrastValueSpan.textContent = adjustment.contrast;
-            sharpnessValueSpan.textContent = adjustment.sharpness;
-            
-            displayCurrentImage();
-        }
-
-        undoButton.addEventListener('click', () => {
-            if (historyIndex > 0) {
-                historyIndex--;
-                applyAdjustment(adjustmentHistory[historyIndex]);
-            }
-        });
-
-        redoButton.addEventListener('click', () => {
-            if (historyIndex < adjustmentHistory.length - 1) {
-                historyIndex++;
-                applyAdjustment(adjustmentHistory[historyIndex]);
-            }
-        });
 
         function updateProgress() {
             const processedCount = imagesData.filter(img => img.processed).length;
             const progress = (processedCount / imagesData.length) * 100;
             progressBar.style.width = `${progress}%`;
-            progressBar.style.backgroundColor = progress === 100 ? '#10B981' : '#3B82F6'; // Green when complete, blue otherwise
+            progressBar.style.backgroundColor = progress === 100 ? '#10B981' : '#2563eb'; // Green when complete, blue otherwise
         }
 
         function updateStatus() {
+            if (imagesData.length === 0) {
+                statusDiv.textContent = "No images to process.";
+                return;
+            }
+            
             const processedCount = imagesData.filter(img => img.processed).length;
             statusDiv.textContent = `Processing image ${currentImageIndex + 1} of ${imagesData.length} (${processedCount} processed)`;
             updateProgress();
@@ -248,165 +473,365 @@
 
         function createThumbnails() {
             thumbnailsContainer.innerHTML = '';
+            
+            // Add existing document thumbnails
             imagesData.forEach((imgData, index) => {
-                const thumbContainer = document.createElement('div');
-                thumbContainer.className = 'relative';
+                const thumbnail = document.createElement('div');
+                thumbnail.className = 'flex flex-col items-center mb-4';
                 
-                const thumb = document.createElement('img');
-                thumb.src = `/serve_image/${imgData.filename}`;
-                thumb.classList.add('thumbnail');
-                if (index === currentImageIndex) {
-                    thumb.classList.add('active');
-                }
+                const thumbnailImage = document.createElement('div');
+                thumbnailImage.className = 'relative w-24 h-32 bg-white rounded shadow-md overflow-hidden cursor-pointer border-2';
+                thumbnailImage.classList.toggle('border-blue-500', index === currentImageIndex);
+                thumbnailImage.classList.toggle('border-gray-200', index !== currentImageIndex);
+                
+                const img = document.createElement('img');
+                img.src = `/serve_image/${imgData.filename}`;
+                img.alt = `Document ${index + 1}`;
+                img.className = 'w-full h-full object-cover';
                 
                 // Add processing status indicator
-                const statusIndicator = document.createElement('div');
-                statusIndicator.className = 'absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center text-xs';
                 if (imgData.processed) {
-                    statusIndicator.className += ' bg-green-500 text-white';
+                    const statusIndicator = document.createElement('div');
+                    statusIndicator.className = 'absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center text-xs bg-green-500 text-white';
                     statusIndicator.innerHTML = '<i class="fas fa-check"></i>';
-                } else {
-                    statusIndicator.className += ' bg-gray-300';
+                    thumbnailImage.appendChild(statusIndicator);
                 }
                 
-                thumbContainer.appendChild(thumb);
-                thumbContainer.appendChild(statusIndicator);
+                thumbnailImage.appendChild(img);
                 
-                thumbContainer.addEventListener('click', () => {
+                const label = document.createElement('div');
+                label.className = 'mt-1 text-xs text-gray-600 text-center w-full truncate';
+                label.textContent = `Page ${index + 1}`;
+                
+                thumbnail.appendChild(thumbnailImage);
+                thumbnail.appendChild(label);
+                
+                thumbnail.addEventListener('click', () => {
                     currentImageIndex = index;
                     displayCurrentImage();
                     updateThumbnails();
                 });
                 
-                thumbnailsContainer.appendChild(thumbContainer);
+                thumbnailsContainer.appendChild(thumbnail);
             });
         }
 
         function updateThumbnails() {
-            const thumbContainers = thumbnailsContainer.children;
-            Array.from(thumbContainers).forEach((container, index) => {
-                const thumb = container.querySelector('.thumbnail');
-                const statusIndicator = container.querySelector('div:last-child');
+            const thumbnails = thumbnailsContainer.querySelectorAll('.flex.flex-col.items-center');
+            thumbnails.forEach((thumbnail, index) => {
+                const thumbnailImage = thumbnail.querySelector('div');
+                thumbnailImage.classList.toggle('border-blue-500', index === currentImageIndex);
+                thumbnailImage.classList.toggle('border-gray-200', index !== currentImageIndex);
                 
-                thumb.classList.toggle('active', index === currentImageIndex);
+                // Update processing status indicator
+                let statusIndicator = thumbnailImage.querySelector('.absolute');
                 if (imagesData[index].processed) {
-                    statusIndicator.className = 'absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center text-xs bg-green-500 text-white';
-                    statusIndicator.innerHTML = '<i class="fas fa-check"></i>';
-                } else {
-                    statusIndicator.className = 'absolute -top-2 -right-2 w-5 h-5 rounded-full bg-gray-300';
-                    statusIndicator.innerHTML = '';
+                    if (!statusIndicator) {
+                        statusIndicator = document.createElement('div');
+                        statusIndicator.className = 'absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center text-xs bg-green-500 text-white';
+                        statusIndicator.innerHTML = '<i class="fas fa-check"></i>';
+                        thumbnailImage.appendChild(statusIndicator);
+                    }
+                } else if (statusIndicator) {
+                    thumbnailImage.removeChild(statusIndicator);
                 }
             });
         }
 
-            function initializeImagesData(data) {
+        function initializeImagesData(data) {
             imagesData = (data.images_data || []).map(img => ({ 
                 ...img, 
                 rotation: 0,
                 processed: false,
-                adjustments: {
-                    brightness: 1.0,
-                    contrast: 1.5,
-                    sharpness: 1.0
-                }
+                adjustments: { ...defaultAdjustments }
             }));
             outputFolder = data.output_folder || "";
             createThumbnails();
         }
 
         function displayCurrentImage() {
-            if (cropper) {
-                cropper.destroy();
+            if (imagesData.length === 0 || currentImageIndex >= imagesData.length) {
+                showNoImagePlaceholder(true);
+                return;
             }
             
+            showNoImagePlaceholder(false);
+            
+            if (cropper) {
+                cropper.destroy();
+                cropper = null;
+            }
+            
+            // Set the image source
             image.src = `/serve_image/${imagesData[currentImageIndex].filename}`;
+            
             image.onload = function() {
+                // Initialize cropper with improved settings
                 cropper = new Cropper(image, {
-                    aspectRatio: NaN,
-                    viewMode: 2,
-                    autoCropArea: 1,
-                    ready: function () {
-                        cropper.rotate(imagesData[currentImageIndex].rotation);
+                    aspectRatio: NaN, // Allow free-form cropping
+                    viewMode: 1, // Restrict the crop box to not exceed the size of the canvas
+                    autoCropArea: 1, // Define the automatic cropping area size (0-1), 1 means full image
+                    responsive: true,
+                    restore: false,
+                    guides: true,
+                    center: true,
+                    highlight: true,
+                    cropBoxMovable: true,
+                    cropBoxResizable: true,
+                    toggleDragModeOnDblclick: true,
+                    ready: function() {
+                        // Apply any saved rotation
+                        if (imagesData[currentImageIndex].rotation !== 0) {
+                            cropper.rotateTo(imagesData[currentImageIndex].rotation);
+                        }
+                        
+                        // Load saved adjustments
+                        const adjustments = imagesData[currentImageIndex].adjustments;
+                        brightnessSlider.value = adjustments.brightness;
+                        contrastSlider.value = adjustments.contrast;
+                        sharpnessSlider.value = adjustments.sharpness;
+                        brightnessValueSpan.textContent = adjustments.brightness;
+                        contrastValueSpan.textContent = adjustments.contrast;
+                        sharpnessValueSpan.textContent = adjustments.sharpness;
+                        
+                        // Apply CSS filters
+                        applyCssFilters();
+                        
+                        // Auto detect document if enabled and image not processed
+                        if (autoEnhanceToggle.checked && !imagesData[currentImageIndex].processed) {
+                            setTimeout(autoDetectDocument, 500); // Slight delay to ensure cropper is fully initialized
+                        }
+                        // Ensure crop box covers the image after initial load with autoCropArea:1
+                        if (cropper) {
+                             const canvasData = cropper.getCanvasData();
+                             cropper.setCropBoxData({
+                                left: canvasData.left,
+                                top: canvasData.top,
+                                width: canvasData.width,
+                                height: canvasData.height
+                             });
+                        }
                     }
                 });
+                
                 updateStatus();
-                processButton.style.display = 'block';
-                createPdfButton.style.display = 'none';
+                updateFinishButton();
                 updateThumbnails();
             };
-            
+
             image.onerror = function() {
                 statusDiv.textContent = `Error loading image: ${imagesData[currentImageIndex].filename}`;
-                processButton.style.display = 'none';
-                createPdfButton.style.display = 'none';
+                finishButton.disabled = true;
+                showNoImagePlaceholder(true);
             };
         }
 
-        // Keyboard shortcuts
-        document.addEventListener('keydown', (e) => {
-            if (e.ctrlKey || e.metaKey) {
-                if (e.key === 'z') {
-                    e.preventDefault();
-                    if (!undoButton.disabled) undoButton.click();
-                } else if (e.key === 'y') {
-                    e.preventDefault();
-                    if (!redoButton.disabled) redoButton.click();
-                }
-            } else if (e.key === 'ArrowLeft') {
-                e.preventDefault();
-                rotateLeftButton.click();
-            } else if (e.key === 'ArrowRight') {
-                e.preventDefault();
-                rotateRightButton.click();
+        // Update the finish button text and functionality based on current state
+        function updateFinishButton() {
+            const allProcessed = imagesData.every(img => img.processed);
+            
+            if (allProcessed && imagesData.length > 0) {
+                finishButton.innerHTML = 'Create PDF <i class="fas fa-file-pdf ml-2"></i>';
+                isProcessingMode = false;
+            } else {
+                finishButton.innerHTML = 'Process <i class="fas fa-arrow-right ml-2"></i>';
+                isProcessingMode = true;
             }
-        });
+            
+            finishButton.disabled = imagesData.length === 0;
+        }
 
-        // Touch gesture support
-        let touchStartX = 0;
-        let touchStartY = 0;
-
-        image.addEventListener('touchstart', (e) => {
-            touchStartX = e.touches[0].clientX;
-            touchStartY = e.touches[0].clientY;
-        });
-
-        image.addEventListener('touchend', (e) => {
-            const touchEndX = e.changedTouches[0].clientX;
-            const touchEndY = e.changedTouches[0].clientY;
-            const deltaX = touchEndX - touchStartX;
-            const deltaY = touchEndY - touchStartY;
-
-            if (Math.abs(deltaX) > Math.abs(deltaY)) {
-                if (deltaX > 50) {
-                    rotateRightButton.click();
-                } else if (deltaX < -50) {
-                    rotateLeftButton.click();
-                }
+        function applyCssFilters() {
+            if (!cropper) return;
+            
+            const brightness = brightnessSlider.value;
+            const contrast = contrastSlider.value;
+            
+            // Apply filters to both the cropper view box and the image for better preview
+            const cropperViewBox = document.querySelector('.cropper-view-box');
+            const cropperImage = document.querySelector('.cropper-canvas img');
+            const cropperDragBox = document.querySelector('.cropper-drag-box');
+            
+            if (cropperViewBox) {
+                cropperViewBox.style.filter = `brightness(${brightness}) contrast(${contrast})`;
             }
-        });
+            
+            if (cropperImage) {
+                // Apply filters to the actual image for a more accurate preview
+                cropperImage.style.filter = `brightness(${brightness}) contrast(${contrast})`;
+            }
+            
+            if (cropperDragBox) {
+                // This helps with the overall appearance
+                cropperDragBox.style.backgroundColor = 'transparent';
+            }
+            
+            // Save current adjustments
+            if (imagesData[currentImageIndex]) {
+                imagesData[currentImageIndex].adjustments = {
+                    brightness: parseFloat(brightnessSlider.value),
+                    contrast: parseFloat(contrastSlider.value),
+                    sharpness: parseFloat(sharpnessSlider.value)
+                };
+            }
+            
+            // Update the preview in real-time by forcing a redraw of the cropper
+            if (cropper) {
+                const currentData = cropper.getData();
+                cropper.setData({
+                    ...currentData,
+                    width: currentData.width + 0.0001 // Tiny change to force redraw
+                });
+                cropper.setData(currentData); // Restore original data
+            }
+        }
 
+        function resetAdjustments() {
+            brightnessSlider.value = defaultAdjustments.brightness;
+            contrastSlider.value = defaultAdjustments.contrast;
+            sharpnessSlider.value = defaultAdjustments.sharpness;
+            brightnessValueSpan.textContent = defaultAdjustments.brightness;
+            contrastValueSpan.textContent = defaultAdjustments.contrast;
+            sharpnessValueSpan.textContent = defaultAdjustments.sharpness;
+            
+            if (imagesData[currentImageIndex]) {
+                imagesData[currentImageIndex].adjustments = { ...defaultAdjustments };
+            }
+            
+            applyCssFilters();
+        }
+
+        function autoDetectDocument() {
+            if (!cropper) return;
+            
+            showProcessingOverlay(true);
+            statusDiv.textContent = "Detecting document edges...";
+            
+            // Get the current image data
+            const canvas = cropper.getCroppedCanvas({
+                maxWidth: 4096,
+                maxHeight: 4096,
+                fillColor: '#fff'
+            });
+            
+            // Convert to base64 for sending to server
+            const imageData = canvas.toDataURL('image/jpeg');
+            
+            // Send to server for edge detection
+            fetch('/detect_edges', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    image_data: imageData,
+                    image_path: imagesData[currentImageIndex].full_path
+                }),
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                showProcessingOverlay(false);
+                
+                if (data.status === 'success' && data.crop_coords) {
+                    // Apply the detected crop coordinates
+                    cropper.setCropBoxData({
+                        left: data.crop_coords.x,
+                        top: data.crop_coords.y,
+                        width: data.crop_coords.width,
+                        height: data.crop_coords.height
+                    });
+                    statusDiv.textContent = "Document edges detected successfully.";
+                } else {
+                    // If detection failed, set a reasonable default
+                    const canvasData = cropper.getCanvasData();
+                    const width = canvasData.width * 0.8;
+                    const height = canvasData.height * 0.8;
+                    const left = (canvasData.width - width) / 2;
+                    const top = (canvasData.height - height) / 2;
+                    
+                    cropper.setCropBoxData({
+                        left: left,
+                        top: top,
+                        width: width,
+                        height: height
+                    });
+                    statusDiv.textContent = "Could not detect document edges. Using default crop area.";
+                }
+            })
+            .catch((error) => {
+                showProcessingOverlay(false);
+                console.error('Error:', error);
+                statusDiv.textContent = 'An error occurred while detecting document edges.';
+                
+                // Use default crop area on error
+                const canvasData = cropper.getCanvasData();
+                const width = canvasData.width * 0.8;
+                const height = canvasData.height * 0.8;
+                const left = (canvasData.width - width) / 2;
+                const top = (canvasData.height - height) / 2;
+                
+                cropper.setCropBoxData({
+                    left: left,
+                    top: top,
+                    width: width,
+                    height: height
+                });
+            });
+        }
+
+        // Event Handlers
         document.addEventListener('DOMContentLoaded', function() {
             const scanDataScript = document.getElementById('scan-data');
             if (scanDataScript) {
-                const data = JSON.parse(scanDataScript.textContent);
-                initializeImagesData(data);
+                try {
+                    const data = JSON.parse(scanDataScript.textContent);
+                    initializeImagesData(data);
+                    
+                    if (imagesData && imagesData.length > 0) {
+                        displayCurrentImage();
+                    } else {
+                        statusDiv.textContent = "No images to process.";
+                        finishButton.disabled = true;
+                        showNoImagePlaceholder(true);
+                    }
+                } catch (error) {
+                    console.error("Error parsing scan data:", error);
+                    statusDiv.textContent = "Error loading image data.";
+                    finishButton.disabled = true;
+                    showNoImagePlaceholder(true);
+                }
             }
 
-            if (imagesData && imagesData.length > 0) {
-                displayCurrentImage();
-            } else {
-                statusDiv.textContent = "No images to process.";
-                processButton.style.display = 'none';
-                createPdfButton.style.display = 'none';
-            }
+            // Finish button click handler
+            finishButton.addEventListener('click', function() {
+                if (isProcessingMode) {
+                    processCurrentImage();
+                } else {
+                    createFinalPDF();
+                }
+            });
 
-            processButton.addEventListener('click', function() {
+            // Process current image
+            function processCurrentImage() {
+                if (!cropper || imagesData.length === 0) {
+                    statusDiv.textContent = "No image to process.";
+                    return;
+                }
+                
+                showProcessingOverlay(true);
+                finishButton.disabled = true;
+                statusDiv.textContent = `Processing ${imagesData[currentImageIndex].filename}...`;
+                
+                // Get crop data
                 const cropData = cropper.getData();
                 const currentImage = imagesData[currentImageIndex];
-
-                processButton.disabled = true;
-                statusDiv.textContent = `Processing ${currentImage.filename}...`;
-
+                
+                // Send to server for processing
                 fetch('/process', {
                     method: 'POST',
                     headers: {
@@ -423,36 +848,43 @@
                         brightness: parseFloat(brightnessSlider.value),
                         contrast: parseFloat(contrastSlider.value),
                         sharpness: parseFloat(sharpnessSlider.value),
-                        rotation: currentImage.rotation,
-                        output_folder: outputFolder
+                        rotation: imagesData[currentImageIndex].rotation,
+                        output_folder: outputFolder,
+                        auto_enhance_enabled: autoEnhanceToggle.checked // Added auto_enhance_enabled flag
                     }),
                 })
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    return response.json();
+                })
                 .then(data => {
-                    processButton.disabled = false;
+                    showProcessingOverlay(false);
+                    finishButton.disabled = false;
+                    
                     if (data.status === 'success') {
                         // Mark current image as processed
                         imagesData[currentImageIndex].processed = true;
+                        updateThumbnails();
                         
-                        currentImageIndex++;
-                        updateProgress();
-                        if (currentImageIndex < imagesData.length) {
+                        // Move to next image if available
+                        if (currentImageIndex < imagesData.length - 1) {
+                            currentImageIndex++;
                             displayCurrentImage();
-                            // Reset adjustment history for new image
-                            adjustmentHistory = [];
-                            historyIndex = -1;
-                            updateHistoryButtons();
                         } else {
-                            // Check if all images were processed successfully
+                            // Check if all images were processed
                             const allProcessed = imagesData.every(img => img.processed);
                             if (allProcessed) {
                                 statusDiv.textContent = "All images processed. Ready to create PDF.";
-                                processButton.style.display = 'none';
-                                createPdfButton.style.display = 'block';
+                                updateFinishButton();
                             } else {
-                                statusDiv.textContent = "Some images need processing. Going back to first unprocessed image.";
-                                currentImageIndex = imagesData.findIndex(img => !img.processed);
-                                displayCurrentImage();
+                                // Find first unprocessed image
+                                const nextUnprocessed = imagesData.findIndex(img => !img.processed);
+                                if (nextUnprocessed !== -1) {
+                                    currentImageIndex = nextUnprocessed;
+                                    displayCurrentImage();
+                                }
                             }
                         }
                     } else {
@@ -460,14 +892,16 @@
                     }
                 })
                 .catch((error) => {
-                    processButton.disabled = false;
+                    showProcessingOverlay(false);
+                    finishButton.disabled = false;
                     console.error('Error:', error);
                     statusDiv.textContent = 'An error occurred while processing the image.';
                 });
-            });
+            }
 
-            createPdfButton.addEventListener('click', function() {
-                createPdfButton.disabled = true;
+            function createFinalPDF() {
+                showProcessingOverlay(true);
+                finishButton.disabled = true;
                 statusDiv.textContent = "Creating PDF...";
 
                 fetch('/create_final_pdf', {
@@ -479,9 +913,16 @@
                         output_folder: outputFolder
                     }),
                 })
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    return response.json();
+                })
                 .then(data => {
-                    createPdfButton.disabled = false;
+                    showProcessingOverlay(false);
+                    finishButton.disabled = false;
+                    
                     if (data.status === 'success') {
                         statusDiv.textContent = `PDF created successfully: ${data.output_path}`;
                     } else {
@@ -489,34 +930,153 @@
                     }
                 })
                 .catch((error) => {
-                    createPdfButton.disabled = false;
+                    showProcessingOverlay(false);
+                    finishButton.disabled = false;
                     console.error('Error:', error);
                     statusDiv.textContent = 'An error occurred while creating the PDF.';
                 });
-            });
+            }
 
+            // Button event handlers
             rotateLeftButton.addEventListener('click', function() {
-                imagesData[currentImageIndex].rotation = (imagesData[currentImageIndex].rotation - 90 + 360) % 360;
-                displayCurrentImage();
-                saveAdjustment();
+                if (cropper) {
+                    // Store current crop data and adjustments
+                    const cropData = cropper.getData();
+                    const adjustments = imagesData[currentImageIndex].adjustments;
+                    
+                    // Update rotation in our data
+                    imagesData[currentImageIndex].rotation -= 90;
+                    if (imagesData[currentImageIndex].rotation < 0) {
+                        imagesData[currentImageIndex].rotation += 360;
+                    }
+                    
+                    // Destroy current cropper
+                    cropper.destroy();
+                    
+                    // Reinitialize cropper with the rotated image
+                    setTimeout(() => {
+                        cropper = new Cropper(image, {
+                            aspectRatio: NaN,
+                            viewMode: 1,
+                            autoCropArea: 1, // Changed from 0.9 to 1
+                            responsive: true,
+                            restore: false,
+                            guides: true,
+                            center: true,
+                            highlight: true,
+                            cropBoxMovable: true,
+                            cropBoxResizable: true,
+                            toggleDragModeOnDblclick: true,
+                            ready: function() {
+                                // Apply rotation
+                                cropper.rotateTo(imagesData[currentImageIndex].rotation);
+                                
+                                // Cropper.js with responsive:true, viewMode:1, and autoCropArea:1
+                                // should handle fitting the image and making the crop box cover it.
+                                // If not, explicit zoom/move and setCropBoxData might be needed here.
+                                // For now, relying on Cropper's behavior.
+
+                                // Apply CSS filters
+                                applyCssFilters();
+                            }
+                        });
+                    }, 100); // setTimeout might be needed for DOM to update after destroy
+                }
             });
 
             rotateRightButton.addEventListener('click', function() {
-                imagesData[currentImageIndex].rotation = (imagesData[currentImageIndex].rotation + 90) % 360;
-                displayCurrentImage();
-                saveAdjustment();
+                if (cropper) {
+                    imagesData[currentImageIndex].rotation += 90;
+                    if (imagesData[currentImageIndex].rotation >= 360) {
+                        imagesData[currentImageIndex].rotation -= 360;
+                    }
+                    
+                    cropper.destroy();
+                    
+                    setTimeout(() => {
+                        cropper = new Cropper(image, {
+                            aspectRatio: NaN,
+                            viewMode: 1,
+                            autoCropArea: 1, // Changed from 0.9 to 1
+                            responsive: true,
+                            restore: false,
+                            guides: true,
+                            center: true,
+                            highlight: true,
+                            cropBoxMovable: true,
+                            cropBoxResizable: true,
+                            toggleDragModeOnDblclick: true,
+                            ready: function() {
+                                cropper.rotateTo(imagesData[currentImageIndex].rotation);
+                                applyCssFilters();
+                            }
+                        });
+                    }, 100);
+                }
             });
 
+            zoomInButton.addEventListener('click', function() {
+                if (cropper) {
+                    zoomLevel += 0.1;
+                    cropper.zoom(0.1);
+                }
+            });
+
+            zoomOutButton.addEventListener('click', function() {
+                if (cropper) {
+                    zoomLevel = Math.max(0.1, zoomLevel - 0.1);
+                    cropper.zoom(-0.1);
+                }
+            });
+
+            autoDetectButton.addEventListener('click', function() {
+                autoDetectDocument();
+            });
+
+            resetCropButton.addEventListener('click', function() {
+                if (cropper) {
+                    cropper.reset();
+                }
+            });
+
+            resetAdjustmentsButton.addEventListener('click', function() {
+                resetAdjustments();
+            });
+
+            addPageButton.addEventListener('click', function() {
+                alert('File picker would open here');
+                // In a real implementation, this would open a file picker
+            });
+
+            // Slider event listeners
             const sliders = [brightnessSlider, contrastSlider, sharpnessSlider];
             const valueSpans = [brightnessValueSpan, contrastValueSpan, sharpnessValueSpan];
 
             sliders.forEach((slider, index) => {
                 slider.addEventListener('input', function() {
                     valueSpans[index].textContent = this.value;
+                    applyCssFilters();
                 });
-                slider.addEventListener('change', function() {
-                    saveAdjustment();
-                });
+            });
+
+            // Auto enhance toggle
+            autoEnhanceToggle.addEventListener('change', function() {
+                if (this.checked && cropper) {
+                    autoDetectDocument();
+                }
+            });
+
+            // Keyboard shortcuts
+            document.addEventListener('keydown', (e) => {
+                if (e.ctrlKey || e.metaKey) {
+                    if (e.key === 'ArrowLeft') {
+                        e.preventDefault();
+                        rotateLeftButton.click();
+                    } else if (e.key === 'ArrowRight') {
+                        e.preventDefault();
+                        rotateRightButton.click();
+                    }
+                }
             });
         });
     </script>
